@@ -459,6 +459,30 @@ sai_status_t SwitchVpp::vs_create_hostif_tap_interface(
     setIfNameToPortId(name, obj_id);
     setPortIdToTapName(obj_id, name);
 
+    /*
+     * Port creation precedes hostif creation during boot, so the initial
+     * SAI_PORT_ATTR_SPEED update cannot resolve the VPP interface name.
+     * Replay the configured speed now that the port-to-hostif map exists.
+     */
+    attr.id = SAI_PORT_ATTR_SPEED;
+    status = get(SAI_OBJECT_TYPE_PORT, obj_id, 1, &attr);
+    if (status == SAI_STATUS_SUCCESS)
+    {
+        status = vpp_set_port_speed(obj_id, 0, attr.value.u32);
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            SWSS_LOG_ERROR("failed to apply configured speed for port %s: %s",
+                    sai_serialize_object_id(obj_id).c_str(),
+                    sai_serialize_status(status).c_str());
+        }
+    }
+    else
+    {
+        SWSS_LOG_WARN("configured speed unavailable for port %s: %s",
+                sai_serialize_object_id(obj_id).c_str(),
+                sai_serialize_status(status).c_str());
+    }
+
     SWSS_LOG_INFO("created tap interface %s", name.c_str());
 
     return SAI_STATUS_SUCCESS;
